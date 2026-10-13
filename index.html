@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>오늘의 응원 한마디</title>
+  <style>
+    :root {
+      --bg: #fff8ef;
+      --card: #ffffff;
+      --text: #2b2420;
+      --muted: #7a6c62;
+      --accent: #ff7a45;
+      --accent-dark: #e8622d;
+      --border: #f0dfd0;
+      --error-bg: #fff0f0;
+      --error-text: #b3261e;
+      --loading-bg: #fff6e0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1d1916;
+        --card: #2a2420;
+        --text: #f5ece4;
+        --muted: #b8a89b;
+        --border: #3e352f;
+        --error-bg: #3a2222;
+        --error-text: #ffb4ab;
+        --loading-bg: #3a3122;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      font-size: 20px;
+      line-height: 1.6;
+      display: flex;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+    main {
+      width: 100%;
+      max-width: 520px;
+    }
+    h1 {
+      font-size: 2rem;
+      margin: 0 0 8px;
+      text-align: center;
+    }
+    .sub {
+      text-align: center;
+      color: var(--muted);
+      margin: 0 0 28px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 24px 20px;
+    }
+    label {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .hint {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin: 6px 0 20px;
+    }
+    input {
+      width: 100%;
+      font-size: 1.2rem;
+      padding: 16px;
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      background: var(--bg);
+      color: var(--text);
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    button {
+      width: 100%;
+      font-size: 1.3rem;
+      font-weight: 700;
+      padding: 18px;
+      min-height: 64px;
+      border: none;
+      border-radius: 14px;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+    }
+    button:hover { background: var(--accent-dark); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    #result {
+      margin-top: 24px;
+      padding: 24px 20px;
+      border-radius: 16px;
+      font-size: 1.35rem;
+      font-weight: 600;
+      text-align: center;
+      min-height: 96px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--card);
+      border: 2px dashed var(--border);
+      color: var(--muted);
+      word-break: keep-all;
+      overflow-wrap: anywhere;
+    }
+    #result.success {
+      border: 2px solid var(--accent);
+      color: var(--text);
+    }
+    #result.loading {
+      background: var(--loading-bg);
+      border-style: solid;
+    }
+    #result.error {
+      background: var(--error-bg);
+      border: 2px solid var(--error-text);
+      color: var(--error-text);
+      font-size: 1.1rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>오늘의 응원 한마디</h1>
+    <p class="sub">닉네임을 적고 응원을 받아 보세요.</p>
+
+    <form class="card" id="form">
+      <label for="name">공개용 닉네임</label>
+      <input id="name" name="name" type="text" maxlength="20" autocomplete="off" placeholder="비우면 '여러분'으로 불러요">
+      <p class="hint">실명 대신 공개해도 되는 닉네임을 적어 주세요.</p>
+      <button type="submit" id="btn">응원 받기</button>
+    </form>
+
+    <div id="result" role="status" aria-live="polite">버튼을 누르면 응원 한마디가 나타나요.</div>
+  </main>
+
+  <script>
+    const form = document.getElementById("form");
+    const input = document.getElementById("name");
+    const btn = document.getElementById("btn");
+    const result = document.getElementById("result");
+
+    function show(text, state) {
+      result.textContent = text;
+      result.className = state || "";
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = input.value.trim();
+
+      btn.disabled = true;
+      btn.textContent = "불러오는 중...";
+      show("응원 문장을 가져오는 중이에요...", "loading");
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+
+      try {
+        const url = "api/message?name=" + encodeURIComponent(name);
+        const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+
+        const data = await res.json();
+        if (!data || typeof data.message !== "string") throw new Error("잘못된 응답");
+
+        show(data.message, "success");
+      } catch (err) {
+        const reason = err.name === "AbortError" ? "응답이 너무 늦어요" : err.message;
+        show("응원 문장을 불러오지 못했어요. 잠시 후 다시 시도해 주세요. (" + reason + ")", "error");
+      } finally {
+        clearTimeout(timer);
+        btn.disabled = false;
+        btn.textContent = "응원 받기";
+      }
+    });
+  </script>
+</body>
+</html>
